@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PDF Q&amp;A</title>
+<style>
+  :root { --bg:#f7f7f8; --card:#fff; --text:#1d1d1f; --muted:#6b6b70; --accent:#c96442; --border:#e3e3e6; }
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.5 system-ui, sans-serif; background:var(--bg); color:var(--text); }
+  main { max-width:760px; margin:0 auto; padding:24px 16px; }
+  h1 { font-size:22px; margin:0 0 4px; }
+  p.sub { color:var(--muted); margin:0 0 20px; }
+  section { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:16px; margin-bottom:16px; }
+  h2 { font-size:15px; margin:0 0 10px; }
+  button { background:var(--accent); color:#fff; border:0; border-radius:6px; padding:8px 14px; cursor:pointer; font:inherit; }
+  button:disabled { opacity:.5; cursor:default; }
+  button.link { background:none; color:var(--muted); padding:0 4px; }
+  textarea, select { width:100%; font:inherit; padding:8px; border:1px solid var(--border); border-radius:6px; }
+  textarea { min-height:70px; resize:vertical; }
+  ul { list-style:none; padding:0; margin:8px 0 0; }
+  li { display:flex; justify-content:space-between; padding:4px 0; border-top:1px solid var(--border); }
+  .row { display:flex; gap:8px; margin-top:8px; align-items:center; flex-wrap:wrap; }
+  .answer { white-space:pre-wrap; }
+  .src { font-size:13px; color:var(--muted); border-left:3px solid var(--border); padding-left:8px; margin-top:8px; }
+  .status { color:var(--muted); font-size:13px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>PDF Q&amp;A</h1>
+  <p class="sub">Upload a PDF, then ask questions. Answers cite the pages they came from.</p>
+
+  <section>
+    <h2>1. Documents</h2>
+    <div class="row">
+      <input type="file" id="file" accept="application/pdf">
+      <button id="upload">Upload</button>
+      <span class="status" id="upStatus"></span>
+    </div>
+    <ul id="docs"></ul>
+  </section>
+
+  <section>
+    <h2>2. Ask</h2>
+    <textarea id="q" placeholder="e.g. What is the refund policy?"></textarea>
+    <div class="row">
+      <select id="scope" style="width:auto"><option value="">All documents</option></select>
+      <button id="ask">Ask</button>
+      <span class="status" id="askStatus"></span>
+    </div>
+  </section>
+
+  <section id="result" hidden>
+    <h2>Answer</h2>
+    <div class="answer" id="answer"></div>
+    <div id="sources"></div>
+  </section>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+
+async function loadDocs() {
+  const docs = await (await fetch('/documents')).json();
+  $('docs').innerHTML = '';
+  $('scope').innerHTML = '<option value="">All documents</option>';
+  for (const d of docs) {
+    const li = document.createElement('li');
+    li.textContent = `${d.filename} (${d.chunks} chunks)`;
+    const del = document.createElement('button');
+    del.className = 'link'; del.textContent = 'delete';
+    del.onclick = async () => { await fetch(`/documents/${d.id}`, {method:'DELETE'}); loadDocs(); };
+    li.appendChild(del);
+    $('docs').appendChild(li);
+    const opt = document.createElement('option');
+    opt.value = d.id; opt.textContent = d.filename;
+    $('scope').appendChild(opt);
+  }
+}
+
+$('upload').onclick = async () => {
+  const f = $('file').files[0];
+  if (!f) return;
+  $('upload').disabled = true; $('upStatus').textContent = 'Reading and indexing...';
+  const body = new FormData(); body.append('file', f);
+  const res = await fetch('/documents', {method:'POST', body});
+  const data = await res.json();
+  $('upStatus').textContent = res.ok ? `Added ${data.chunks} chunks.` : data.detail;
+  $('upload').disabled = false; $('file').value = '';
+  loadDocs();
+};
+
+$('ask').onclick = async () => {
+  const question = $('q').value.trim();
+  if (!question) return;
+  $('ask').disabled = true; $('askStatus').textContent = 'Thinking...';
+  const scope = $('scope').value;
+  const res = await fetch('/ask', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({question, document_id: scope ? Number(scope) : null}),
+  });
+  const data = await res.json();
+  $('ask').disabled = false; $('askStatus').textContent = '';
+  $('result').hidden = false;
+  if (!res.ok) { $('answer').textContent = data.detail; $('sources').innerHTML = ''; return; }
+  $('answer').textContent = data.answer;
+  $('sources').innerHTML = '';
+  for (const s of data.sources) {
+    const div = document.createElement('div');
+    div.className = 'src';
+    div.textContent = `[${s.id}] ${s.filename}, page ${s.page} (similarity ${s.score}): ${s.excerpt}...`;
+    $('sources').appendChild(div);
+  }
+};
+
+loadDocs();
+</script>
+</body>
+</html>
