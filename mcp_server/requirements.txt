@@ -1,0 +1,4 @@
+# Only what the MCP server needs; install on the machine that runs Claude Desktop.
+mcp>=2.3,<3
+httpx>=0.27
+pydantic>=2.7

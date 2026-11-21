@@ -21,6 +21,7 @@ chunks, and Claude answers from those chunks only, citing file and page.
 | `app/config.py` | Every setting, read from environment variables |
 | `app/static/index.html` | Single-file UI, plain JS, no build step |
 | `db/init.sql` | Schema and HNSW index; runs only when the DB volume is first created |
+| `mcp_server/server.py` | MCP server (stdio) for Claude Desktop; each tool is one HTTP call to the API |
 
 Data flow: `upload -> ingest.chunk_pdf -> embeddings.embed -> db.save_document`
 and `ask -> embeddings.embed_one -> db.search -> llm.answer`.
@@ -35,6 +36,7 @@ docker compose up -d --build          # start db + api (UI at http://localhost:$
 docker compose logs -f api            # API logs
 docker compose run --rm -v "$PWD/tests:/code/tests" api \
   sh -c "pip install -q pytest && python -m pytest -q tests"   # unit tests
+python -m pytest -q mcp_server/tests  # MCP server tests (host venv, fake HTTP API)
 docker compose down                   # stop (keeps data)
 docker compose down -v                # stop AND delete the database volume
 ```
@@ -55,6 +57,9 @@ Health check: `curl http://localhost:${API_PORT:-8000}/health` returns `{"status
   `EMBEDDING_DIM` in `app/config.py`, and recreating the DB volume.
 - **Schema changes:** `db/init.sql` only runs on a fresh volume. For an existing
   database, write the `ALTER` statement too and say so in the PR.
+- The MCP server talks to the API over HTTP only; never import `app.*` there.
+  It must not `print()` (stdout is the MCP channel). No delete tool without
+  the owner's OK.
 - Keep SQL in `app/db.py` and Claude calls in `app/llm.py`. Routes in `main.py`
   stay thin: validate input, call those modules, map errors to HTTP codes.
 
