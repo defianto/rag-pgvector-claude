@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "rag-pdf": {
+      "command": "D:\\Project\\rag-pdf-chatbot\\.venv-mcp\\Scripts\\python.exe",
+      "args": ["D:\\Project\\rag-pdf-chatbot\\mcp_server\\server.py"],
+      "env": {
+        "RAG_API_URL": "http://localhost:8000"
+      }
+    }
+  }
+}

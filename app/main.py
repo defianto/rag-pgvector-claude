@@ -38,6 +38,20 @@ class AskResponse(BaseModel):
     sources: list[Source]
 
 
+class SearchRequest(BaseModel):
+    query: str = Field(min_length=1, max_length=2000)
+    document_id: int | None = None
+    top_k: int = Field(default=config.TOP_K, ge=1, le=20)
+
+
+class Passage(BaseModel):
+    id: int
+    filename: str
+    page: int
+    score: float
+    content: str
+
+
 @app.get("/", include_in_schema=False)
 def index():
     return FileResponse(STATIC / "index.html")
@@ -79,6 +93,19 @@ def list_documents():
 def delete_document(doc_id: int):
     if not db.delete_document(doc_id):
         raise HTTPException(404, "Document not found.")
+
+
+@app.post("/search", response_model=list[Passage])
+def search(req: SearchRequest):
+    """Retrieval only: the nearest chunks, no Claude call and no API key needed.
+
+    The MCP server uses this so the client's own model writes the answer.
+    """
+    hits = db.search(embeddings.embed_one(req.query), req.top_k, req.document_id)
+    return [
+        Passage(id=i, filename=h.filename, page=h.page, score=round(h.score, 3), content=h.content)
+        for i, h in enumerate(hits, start=1)
+    ]
 
 
 @app.post("/ask", response_model=AskResponse)

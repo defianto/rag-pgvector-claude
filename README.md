@@ -53,6 +53,7 @@ If port 8000 or 5433 is already taken on your machine, set `API_PORT` or
 | `GET` | `/documents` | List uploaded documents |
 | `DELETE` | `/documents/{id}` | Delete a document and its chunks |
 | `POST` | `/ask` | `{"question": "...", "document_id": null}` → answer + sources |
+| `POST` | `/search` | `{"query": "...", "document_id": null, "top_k": 5}` → passages only, no Claude call |
 
 Example:
 
@@ -72,6 +73,12 @@ curl -H "Content-Type: application/json" \
 }
 ```
 
+## Use it from Claude Desktop (MCP)
+
+`mcp_server/` wraps this API as an MCP server, so Claude Desktop can list,
+search and upload your PDFs as tools. Setup and tool list:
+[mcp_server/README.md](mcp_server/README.md).
+
 ## Project layout
 
 ```
@@ -83,7 +90,8 @@ app/
   llm.py         prompt and Claude call
   static/        minimal web UI
 db/init.sql      schema + HNSW index
-tests/           unit tests (chunking, prompt)
+tests/           unit tests (chunking, prompt, /search)
+mcp_server/      MCP server for Claude Desktop (own requirements and tests)
 ```
 
 ## Tests
